@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test"
-import {
-  BusRouterSolver,
-  IdentifyBusTerminalObstaclesSolver,
-} from "lib/bus-router-solver"
+import { BusRouterSolver } from "lib/BusRouterSolver"
+import { IdentifyBusTerminalObstaclesSolver } from "lib/IdentifyBusTerminalObstaclesSolver"
 import exampleBus from "./assets/CM5IO_bus1.json"
 import exampleSrj from "./assets/CM5IO.srj.json"
 
