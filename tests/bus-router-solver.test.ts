@@ -216,7 +216,7 @@ test("FindBusPathSolver steps through A* candidates and exposes the current path
   expect(output?.path.length).toBeGreaterThan(2)
   expect(output?.pathCost).toBeGreaterThan(0)
   expect(output?.greedyMultiplier).toBeCloseTo(1.5)
-  expect(output?.obstacleSearchCells).toBe(3)
+  expect(output?.obstacleSearchCells).toBe(10)
   expect(output?.obstacleProximityPenalty).toBeCloseTo(5.25)
   expect(output?.faninCell.index).toBe(
     fanoutStartEndSolver.getOutput()?.selectedFaninCandidate.cell.index,

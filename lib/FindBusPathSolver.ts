@@ -150,23 +150,35 @@ export class FindBusPathSolver extends BaseSolver {
   }
 
   private getObstacleDistance(column: number, row: number): number {
-    for (
-      let distance = 1;
-      distance <= this.obstacleSearchCells;
-      distance += 1
-    ) {
-      const candidateCells = [
-        { column, row: row - distance },
-        { column: column + distance, row },
-        { column, row: row + distance },
-        { column: column - distance, row },
-      ]
+    let nearestObstacleDistance = this.obstacleSearchCells
 
-      for (const candidateCell of candidateCells) {
+    for (
+      let columnOffset = -this.obstacleSearchCells;
+      columnOffset <= this.obstacleSearchCells;
+      columnOffset += 1
+    ) {
+      for (
+        let rowOffset = -this.obstacleSearchCells;
+        rowOffset <= this.obstacleSearchCells;
+        rowOffset += 1
+      ) {
+        const manhattanDistance =
+          Math.abs(columnOffset) + Math.abs(rowOffset)
+
+        if (
+          manhattanDistance === 0 ||
+          manhattanDistance > this.obstacleSearchCells
+        ) {
+          continue
+        }
+
+        const candidateColumn = column + columnOffset
+        const candidateRow = row + rowOffset
+
         if (
           !isInBounds(
-            candidateCell.column,
-            candidateCell.row,
+            candidateColumn,
+            candidateRow,
             this.params.grid.gridWidth,
             this.params.grid.gridHeight,
           )
@@ -177,19 +189,24 @@ export class FindBusPathSolver extends BaseSolver {
         const flags =
           this.params.grid.grid[
             getGridIndex(
-              candidateCell.column,
-              candidateCell.row,
+              candidateColumn,
+              candidateRow,
               this.params.grid.gridWidth,
             )
           ]!
 
-        if ((flags & GridCellFlags.obstacle) !== 0) {
-          return distance
+        if ((flags & GridCellFlags.obstacle) === 0) {
+          continue
         }
+
+        nearestObstacleDistance = Math.min(
+          nearestObstacleDistance,
+          manhattanDistance,
+        )
       }
     }
 
-    return this.obstacleSearchCells
+    return nearestObstacleDistance
   }
 
   private getStepCost(nextCell: GridCellAddress): number {
