@@ -1,2 +1,3 @@
 export * from "./IdentifyBusTerminalObstaclesSolver"
-export * from "./BusRouterSolver"
+export * from "./BusRoutePipeline"
+export { BusRoutePipeline as BusRouterSolver } from "./BusRoutePipeline"

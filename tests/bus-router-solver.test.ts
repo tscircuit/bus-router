@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { BusRouterSolver } from "lib/BusRouterSolver"
+import { BusRoutePipeline } from "lib/BusRoutePipeline"
 import { IdentifyBusTerminalObstaclesSolver } from "lib/IdentifyBusTerminalObstaclesSolver"
 import exampleBus from "./assets/CM5IO_bus1.json"
 import exampleSrj from "./assets/CM5IO.srj.json"
@@ -27,8 +27,8 @@ test("IdentifyBusTerminalObstaclesSolver splits the example bus into two obstacl
   )
 })
 
-test("BusRouterSolver runs the first bus pipeline stage and visualizes start/end obstacles", () => {
-  const solver = new BusRouterSolver(exampleInput)
+test("BusRoutePipeline runs the first bus pipeline stage and visualizes start/end obstacles", () => {
+  const solver = new BusRoutePipeline(exampleInput)
 
   solver.solve()
   const output = solver.getOutput()
