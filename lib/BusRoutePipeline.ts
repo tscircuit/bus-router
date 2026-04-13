@@ -11,10 +11,15 @@ import {
   type BusTerminalObstacleDetectionOutput,
 } from "./IdentifyBusTerminalObstaclesSolver"
 import { GridBuilderSolver, type GridBuilderOutput } from "./GridBuilderSolver"
+import {
+  FindFanoutStartEndSolver,
+  type FindFanoutStartEndOutput,
+} from "./FindFanoutStartEndSolver"
 
 export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
   identifyBusTerminalObstaclesSolver?: IdentifyBusTerminalObstaclesSolver
   gridBuilderSolver?: GridBuilderSolver
+  findFanoutStartEndSolver?: FindFanoutStartEndSolver
 
   override pipelineDef: PipelineStep<any>[] = [
     definePipelineStep(
@@ -35,15 +40,31 @@ export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
         },
       ],
     ),
+    definePipelineStep(
+      "findFanoutStartEndSolver",
+      FindFanoutStartEndSolver,
+      (instance: BusRoutePipeline) => [
+        {
+          inputProblem: instance.inputProblem,
+          grid: instance.getStageOutput<GridBuilderOutput>(
+            "gridBuilderSolver",
+          )!,
+        },
+      ],
+    ),
   ]
 
-  override getOutput(): GridBuilderOutput | null {
-    return this.gridBuilderSolver?.getOutput() ?? null
+  override getOutput(): FindFanoutStartEndOutput | null {
+    return this.findFanoutStartEndSolver?.getOutput() ?? null
   }
 
   override visualize(): GraphicsObject {
     if (this.activeSubSolver) {
       return this.activeSubSolver.visualize()
+    }
+
+    if (this.findFanoutStartEndSolver) {
+      return this.findFanoutStartEndSolver.visualize()
     }
 
     if (this.gridBuilderSolver) {

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import { BusRoutePipeline } from "lib/BusRoutePipeline"
+import { FindFanoutStartEndSolver } from "lib/FindFanoutStartEndSolver"
 import { GridBuilderSolver, GridCellFlags } from "lib/GridBuilderSolver"
 import { IdentifyBusTerminalObstaclesSolver } from "lib/IdentifyBusTerminalObstaclesSolver"
 import exampleBus from "./assets/CM5IO_bus1.json"
@@ -28,7 +29,7 @@ test("IdentifyBusTerminalObstaclesSolver splits the example bus into two obstacl
   )
 })
 
-test("GridBuilderSolver computes an Int32 obstacle grid and marks the terminal cells", () => {
+test("GridBuilderSolver builds a half-bus-size grid and keeps bus-connected obstacles out of obstacle occupancy", () => {
   const identifySolver = new IdentifyBusTerminalObstaclesSolver(exampleInput)
 
   identifySolver.solve()
@@ -46,6 +47,10 @@ test("GridBuilderSolver computes an Int32 obstacle grid and marks the terminal c
 
   const output = solver.getOutput()
   const visualization = solver.visualize()
+  const startAreaCenterFlags =
+    output?.grid[output?.startArea.centerCell.index ?? 0] ?? 0
+  const endAreaCenterFlags =
+    output?.grid[output?.endArea.centerCell.index ?? 0] ?? 0
 
   expect(solver.solved).toBe(true)
   expect(solver.failed).toBe(false)
@@ -53,61 +58,117 @@ test("GridBuilderSolver computes an Int32 obstacle grid and marks the terminal c
   expect(output?.grid).toBeInstanceOf(Int32Array)
   expect(output?.traceCount).toBe(9)
   expect(output?.requiredBusWidth).toBeCloseTo(2.1)
-  expect(output?.cellSize).toBeCloseTo(0.525)
+  expect(output?.cellSize).toBeCloseTo(1.05)
   expect(output?.gridWidth).toBeGreaterThan(0)
   expect(output?.gridHeight).toBeGreaterThan(0)
   expect(output?.obstacleCellCount).toBeGreaterThan(0)
-  expect(output?.startCell.index).not.toBe(output?.endCell.index)
+  expect(output?.busConnectedObstacleIndices).toHaveLength(18)
+  expect(startAreaCenterFlags & GridCellFlags.obstacle).toBe(0)
+  expect(endAreaCenterFlags & GridCellFlags.obstacle).toBe(0)
+  expect(startAreaCenterFlags & GridCellFlags.startArea).toBe(
+    GridCellFlags.startArea,
+  )
+  expect(endAreaCenterFlags & GridCellFlags.endArea).toBe(GridCellFlags.endArea)
   expect(
-    (output?.grid[output?.startCell.index ?? 0] ?? 0) & GridCellFlags.start,
-  ).toBe(GridCellFlags.start)
+    visualization.rects?.filter(
+      (rect) => rect.label === "bus-start-area-obstacle",
+    ),
+  ).toHaveLength(9)
   expect(
-    (output?.grid[output?.endCell.index ?? 0] ?? 0) & GridCellFlags.end,
-  ).toBe(GridCellFlags.end)
+    visualization.rects?.filter(
+      (rect) => rect.label === "bus-end-area-obstacle",
+    ),
+  ).toHaveLength(9)
   expect(
-    visualization.rects?.filter((rect) => rect.label === "obstacle-cell"),
-  ).toHaveLength(output?.obstacleCellCount ?? 0)
-  expect(
-    visualization.rects?.some((rect) => rect.label === "bus-start-cell"),
+    visualization.texts?.some((text) => text.text === "Bus Start Area"),
   ).toBe(true)
   expect(
-    visualization.rects?.some((rect) => rect.label === "bus-end-cell"),
+    visualization.texts?.some((text) => text.text === "Bus End Area"),
   ).toBe(true)
 })
 
-test("BusRoutePipeline runs the grid builder stage and visualizes grid occupancy", () => {
+test("FindFanoutStartEndSolver finds candidate fanout and fanin positions and selects the closest pair", () => {
+  const identifySolver = new IdentifyBusTerminalObstaclesSolver(exampleInput)
+
+  identifySolver.solve()
+
+  const gridBuilderSolver = new GridBuilderSolver({
+    inputProblem: exampleInput,
+    terminalObstacles: identifySolver.getOutput()!,
+  })
+
+  gridBuilderSolver.solve()
+
+  const solver = new FindFanoutStartEndSolver({
+    inputProblem: exampleInput,
+    grid: gridBuilderSolver.getOutput()!,
+  })
+
+  solver.solve()
+
+  const output = solver.getOutput()
+  const visualization = solver.visualize()
+
+  expect(solver.solved).toBe(true)
+  expect(solver.failed).toBe(false)
+  expect(output).not.toBeNull()
+  expect(output?.fanoutCandidates.length).toBeGreaterThan(0)
+  expect(output?.faninCandidates.length).toBeGreaterThan(0)
+  expect(output?.selectedDistance).toBeGreaterThan(0)
+  expect(
+    visualization.lines?.some((line) => line.label === "fanout-area-line"),
+  ).toBe(true)
+  expect(
+    visualization.lines?.some((line) => line.label === "fanin-area-line"),
+  ).toBe(true)
+  expect(
+    visualization.lines?.some(
+      (line) => line.label === "selected-fanout-fanin-pair",
+    ),
+  ).toBe(true)
+  expect(
+    visualization.circles?.filter(
+      (circle) => circle.label === "fanout-candidate",
+    ),
+  ).toHaveLength(output?.fanoutCandidates.length ?? 0)
+  expect(
+    visualization.circles?.filter(
+      (circle) => circle.label === "fanin-candidate",
+    ),
+  ).toHaveLength(output?.faninCandidates.length ?? 0)
+  expect(
+    visualization.circles?.some((circle) => circle.label === "selected-fanout"),
+  ).toBe(true)
+  expect(
+    visualization.circles?.some((circle) => circle.label === "selected-fanin"),
+  ).toBe(true)
+})
+
+test("BusRoutePipeline runs through fanout/fanin selection and visualizes the selected pair", () => {
   const solver = new BusRoutePipeline(exampleInput)
 
   solver.solve()
 
   const output = solver.getOutput()
-  const terminalOutput = solver.getStageOutput(
-    "identifyBusTerminalObstaclesSolver",
-  )
+  const gridOutput = solver.getStageOutput("gridBuilderSolver")
   const visualization = solver.visualize()
-  const obstacleCellRects =
-    visualization.rects?.filter((rect) => rect.label === "obstacle-cell") ?? []
 
   expect(solver.solved).toBe(true)
   expect(solver.failed).toBe(false)
+  expect(gridOutput).not.toBeNull()
   expect(output).not.toBeNull()
-  expect(terminalOutput).not.toBeNull()
-  expect(output?.grid).toBeInstanceOf(Int32Array)
-  expect(output?.traceCount).toBe(9)
-  expect(output?.requiredBusWidth).toBeCloseTo(2.1)
-  expect(output?.cellSize).toBeCloseTo(0.525)
-  expect(output?.obstacleCellCount).toBeGreaterThan(0)
-  expect(obstacleCellRects).toHaveLength(output?.obstacleCellCount ?? 0)
+  expect(gridOutput?.cellSize).toBeCloseTo(1.05)
+  expect(output?.fanoutCandidates.length).toBeGreaterThan(0)
+  expect(output?.faninCandidates.length).toBeGreaterThan(0)
   expect(
-    visualization.rects?.some((rect) => rect.label === "bus-start-cell"),
+    visualization.lines?.some(
+      (line) => line.label === "selected-fanout-fanin-pair",
+    ),
   ).toBe(true)
   expect(
-    visualization.rects?.some((rect) => rect.label === "bus-end-cell"),
+    visualization.circles?.some((circle) => circle.label === "selected-fanout"),
   ).toBe(true)
-  expect(visualization.texts?.some((text) => text.text === "Bus Start")).toBe(
-    true,
-  )
-  expect(visualization.texts?.some((text) => text.text === "Bus End")).toBe(
-    true,
-  )
+  expect(
+    visualization.circles?.some((circle) => circle.label === "selected-fanin"),
+  ).toBe(true)
 })

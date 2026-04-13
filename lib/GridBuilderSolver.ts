@@ -12,22 +12,20 @@ const ADJACENT_TRACE_SPACING = 0.15
 const GRID_PADDING_IN_BUS_WIDTHS = 1
 
 const GRID_OBSTACLE = 1 << 0
-const GRID_START = 1 << 1
-const GRID_END = 1 << 2
+const GRID_START_AREA = 1 << 1
+const GRID_END_AREA = 1 << 2
 
 const GRID_OUTLINE_STROKE = "rgba(15, 23, 42, 0.1)"
-const GRID_BORDER_STROKE = "rgba(220, 38, 38, 0.7)"
+const GRID_BORDER_STROKE = "rgba(15, 23, 42, 0.35)"
 const GRID_OBSTACLE_FILL = "rgba(220, 38, 38, 0.38)"
-const GRID_START_FILL = "rgba(37, 99, 235, 0.5)"
-const GRID_START_STROKE = "#2563eb"
-const GRID_END_FILL = "rgba(22, 163, 74, 0.5)"
-const GRID_END_STROKE = "#16a34a"
+const BUS_AREA_STROKE = "#2563eb"
+const BUS_AREA_FILL = "rgba(37, 99, 235, 0.24)"
 const SUMMARY_TEXT_COLOR = "#0f172a"
 
 export const GridCellFlags = {
   obstacle: GRID_OBSTACLE,
-  start: GRID_START,
-  end: GRID_END,
+  startArea: GRID_START_AREA,
+  endArea: GRID_END_AREA,
 } as const
 
 export interface GridBuilderSolverInput {
@@ -40,6 +38,12 @@ export interface GridCellAddress {
   row: number
   index: number
   center: XYPoint
+}
+
+export interface GridTerminalArea {
+  obstacleIndices: number[]
+  centroid: XYPoint
+  centerCell: GridCellAddress
 }
 
 export interface GridBuilderOutput {
@@ -59,8 +63,9 @@ export interface GridBuilderOutput {
   gridHeight: number
   grid: Int32Array
   obstacleCellCount: number
-  startCell: GridCellAddress
-  endCell: GridCellAddress
+  busConnectedObstacleIndices: number[]
+  startArea: GridTerminalArea
+  endArea: GridTerminalArea
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -101,10 +106,13 @@ const getObstacleBounds = (obstacles: BusObstacle[]) => {
   return { minX, maxX, minY, maxY }
 }
 
-const getGridIndex = (column: number, row: number, gridWidth: number): number =>
-  row * gridWidth + column
+export const getGridIndex = (
+  column: number,
+  row: number,
+  gridWidth: number,
+): number => row * gridWidth + column
 
-const getCellAddressFromPoint = (params: {
+export const getCellAddressFromPoint = (params: {
   point: XYPoint
   origin: XYPoint
   cellSize: number
@@ -130,6 +138,63 @@ const getCellAddressFromPoint = (params: {
       x: params.origin.x + (column + 0.5) * params.cellSize,
       y: params.origin.y + (row + 0.5) * params.cellSize,
     },
+  }
+}
+
+const rasterizeObstacleIndices = (params: {
+  flag: number
+  grid: Int32Array
+  obstacleIndices: number[]
+  obstacles: BusObstacle[]
+  origin: XYPoint
+  cellSize: number
+  gridWidth: number
+  gridHeight: number
+}) => {
+  for (const obstacleIndex of params.obstacleIndices) {
+    const obstacle = params.obstacles[obstacleIndex]
+
+    if (!obstacle) {
+      continue
+    }
+
+    const halfWidth = obstacle.width / 2
+    const halfHeight = obstacle.height / 2
+    const minColumn = clamp(
+      Math.floor(
+        (obstacle.center.x - halfWidth - params.origin.x) / params.cellSize,
+      ),
+      0,
+      params.gridWidth - 1,
+    )
+    const maxColumn = clamp(
+      Math.ceil(
+        (obstacle.center.x + halfWidth - params.origin.x) / params.cellSize,
+      ) - 1,
+      0,
+      params.gridWidth - 1,
+    )
+    const minRow = clamp(
+      Math.floor(
+        (obstacle.center.y - halfHeight - params.origin.y) / params.cellSize,
+      ),
+      0,
+      params.gridHeight - 1,
+    )
+    const maxRow = clamp(
+      Math.ceil(
+        (obstacle.center.y + halfHeight - params.origin.y) / params.cellSize,
+      ) - 1,
+      0,
+      params.gridHeight - 1,
+    )
+
+    for (let row = minRow; row <= maxRow; row += 1) {
+      for (let column = minColumn; column <= maxColumn; column += 1) {
+        const index = getGridIndex(column, row, params.gridWidth)
+        params.grid[index] = params.grid[index]! | params.flag
+      }
+    }
   }
 }
 
@@ -181,24 +246,127 @@ const createObstacleCellRects = (output: GridBuilderOutput): Rect[] => {
   return rects
 }
 
-const createTerminalCellRects = (output: GridBuilderOutput): Rect[] => [
+const createAreaObstacleRects = (params: {
+  obstacles: BusObstacle[]
+  startAreaObstacleIndices: number[]
+  endAreaObstacleIndices: number[]
+}): Rect[] => {
+  const rects: Rect[] = []
+
+  for (const obstacleIndex of params.startAreaObstacleIndices) {
+    const obstacle = params.obstacles[obstacleIndex]
+
+    if (!obstacle) {
+      continue
+    }
+
+    rects.push({
+      center: obstacle.center,
+      width: obstacle.width,
+      height: obstacle.height,
+      fill: BUS_AREA_FILL,
+      stroke: BUS_AREA_STROKE,
+      label: "bus-start-area-obstacle",
+    })
+  }
+
+  for (const obstacleIndex of params.endAreaObstacleIndices) {
+    const obstacle = params.obstacles[obstacleIndex]
+
+    if (!obstacle) {
+      continue
+    }
+
+    rects.push({
+      center: obstacle.center,
+      width: obstacle.width,
+      height: obstacle.height,
+      fill: BUS_AREA_FILL,
+      stroke: BUS_AREA_STROKE,
+      label: "bus-end-area-obstacle",
+    })
+  }
+
+  return rects
+}
+
+const createAreaTexts = (
+  output: GridBuilderOutput,
+): NonNullable<GraphicsObject["texts"]> => [
   {
-    center: output.startCell.center,
-    width: output.cellSize,
-    height: output.cellSize,
-    fill: GRID_START_FILL,
-    stroke: GRID_START_STROKE,
-    label: "bus-start-cell",
+    x: output.startArea.centroid.x,
+    y: output.startArea.centroid.y + output.cellSize * 1.2,
+    text: "Bus Start Area",
+    fontSize: Math.max(4, output.cellSize * 0.7),
+    color: BUS_AREA_STROKE,
   },
   {
-    center: output.endCell.center,
-    width: output.cellSize,
-    height: output.cellSize,
-    fill: GRID_END_FILL,
-    stroke: GRID_END_STROKE,
-    label: "bus-end-cell",
+    x: output.endArea.centroid.x,
+    y: output.endArea.centroid.y + output.cellSize * 1.2,
+    text: "Bus End Area",
+    fontSize: Math.max(4, output.cellSize * 0.7),
+    color: BUS_AREA_STROKE,
   },
 ]
+
+const createGridBorderRect = (output: GridBuilderOutput): Rect => ({
+  center: {
+    x: (output.bounds.minX + output.bounds.maxX) / 2,
+    y: (output.bounds.minY + output.bounds.maxY) / 2,
+  },
+  width: output.gridWidth * output.cellSize,
+  height: output.gridHeight * output.cellSize,
+  stroke: GRID_BORDER_STROKE,
+  label: "grid-border",
+})
+
+export const createGridBuilderVisualization = (params: {
+  inputProblem: BusRouterInput
+  output: GridBuilderOutput
+  title: string
+  extraLines?: NonNullable<GraphicsObject["lines"]>
+  extraRects?: NonNullable<GraphicsObject["rects"]>
+  extraCircles?: NonNullable<GraphicsObject["circles"]>
+  extraTexts?: NonNullable<GraphicsObject["texts"]>
+  extraPoints?: NonNullable<GraphicsObject["points"]>
+}): GraphicsObject => {
+  const summaryLines = [
+    `Trace count: ${params.output.traceCount}`,
+    `Required bus width: ${params.output.requiredBusWidth.toFixed(3)}`,
+    `Grid cell size: ${params.output.cellSize.toFixed(3)}`,
+    `Grid size: ${params.output.gridWidth} x ${params.output.gridHeight}`,
+    `Obstacle cells: ${params.output.obstacleCellCount}`,
+    `Bus-connected obstacles: ${params.output.busConnectedObstacleIndices.length}`,
+  ]
+  const texts = [
+    ...createSummaryTexts(
+      params.output.bounds,
+      params.output.cellSize,
+      summaryLines,
+    ),
+    ...createAreaTexts(params.output),
+    ...(params.extraTexts ?? []),
+  ]
+
+  return {
+    title: params.title,
+    coordinateSystem: "cartesian",
+    points: params.extraPoints ?? [],
+    lines: params.extraLines ?? [],
+    rects: [
+      ...createObstacleCellRects(params.output),
+      ...createAreaObstacleRects({
+        obstacles: params.inputProblem.obstacles,
+        startAreaObstacleIndices: params.output.startArea.obstacleIndices,
+        endAreaObstacleIndices: params.output.endArea.obstacleIndices,
+      }),
+      createGridBorderRect(params.output),
+      ...(params.extraRects ?? []),
+    ],
+    circles: params.extraCircles ?? [],
+    texts,
+  }
+}
 
 const computeRequiredBusWidth = (
   traceCount: number,
@@ -230,7 +398,7 @@ export class GridBuilderSolver extends BaseSolver {
     const traceWidth =
       this.params.inputProblem.traceWidth ?? DEFAULT_TRACE_WIDTH
     const requiredBusWidth = computeRequiredBusWidth(traceCount, traceWidth)
-    const cellSize = requiredBusWidth / 4
+    const cellSize = requiredBusWidth / 2
     const obstacleBounds = getObstacleBounds(this.params.inputProblem.obstacles)
     const padding = requiredBusWidth * GRID_PADDING_IN_BUS_WIDTHS
     const origin = {
@@ -256,10 +424,22 @@ export class GridBuilderSolver extends BaseSolver {
       maxY: origin.y + gridHeight * cellSize,
     }
     const grid = new Int32Array(gridWidth * gridHeight)
+    const busConnectedObstacleIndices =
+      this.params.terminalObstacles.candidateObstacleIndices
+    const busConnectedObstacleIndexSet = new Set(busConnectedObstacleIndices)
     let obstacleCellCount = 0
 
-    // Rasterize each obstacle's bounding box into the occupancy grid.
-    for (const obstacle of this.params.inputProblem.obstacles) {
+    // Rasterize only non-bus obstacles into the blocking occupancy grid.
+    for (
+      let obstacleIndex = 0;
+      obstacleIndex < this.params.inputProblem.obstacles.length;
+      obstacleIndex += 1
+    ) {
+      if (busConnectedObstacleIndexSet.has(obstacleIndex)) {
+        continue
+      }
+
+      const obstacle = this.params.inputProblem.obstacles[obstacleIndex]!
       const halfWidth = obstacle.width / 2
       const halfHeight = obstacle.height / 2
       const minColumn = clamp(
@@ -296,23 +476,68 @@ export class GridBuilderSolver extends BaseSolver {
       }
     }
 
-    const startCell = getCellAddressFromPoint({
-      point: this.params.terminalObstacles.busStart.centroid,
+    const startArea: GridTerminalArea = {
+      obstacleIndices: this.params.terminalObstacles.busStart.obstacleIndices,
+      centroid: this.params.terminalObstacles.busStart.centroid,
+      centerCell: getCellAddressFromPoint({
+        point: this.params.terminalObstacles.busStart.centroid,
+        origin,
+        cellSize,
+        gridWidth,
+        gridHeight,
+      }),
+    }
+    const endArea: GridTerminalArea = {
+      obstacleIndices: this.params.terminalObstacles.busEnd.obstacleIndices,
+      centroid: this.params.terminalObstacles.busEnd.centroid,
+      centerCell: getCellAddressFromPoint({
+        point: this.params.terminalObstacles.busEnd.centroid,
+        origin,
+        cellSize,
+        gridWidth,
+        gridHeight,
+      }),
+    }
+
+    rasterizeObstacleIndices({
+      flag: GridCellFlags.startArea,
+      grid,
+      obstacleIndices: startArea.obstacleIndices,
+      obstacles: this.params.inputProblem.obstacles,
       origin,
       cellSize,
       gridWidth,
       gridHeight,
     })
-    const endCell = getCellAddressFromPoint({
-      point: this.params.terminalObstacles.busEnd.centroid,
+    rasterizeObstacleIndices({
+      flag: GridCellFlags.endArea,
+      grid,
+      obstacleIndices: endArea.obstacleIndices,
+      obstacles: this.params.inputProblem.obstacles,
       origin,
       cellSize,
       gridWidth,
       gridHeight,
     })
 
-    grid[startCell.index] = grid[startCell.index]! | GridCellFlags.start
-    grid[endCell.index] = grid[endCell.index]! | GridCellFlags.end
+    for (let index = 0; index < grid.length; index += 1) {
+      if (
+        (grid[index]! & (GridCellFlags.startArea | GridCellFlags.endArea)) ===
+        0
+      ) {
+        continue
+      }
+
+      grid[index] = grid[index]! & ~GridCellFlags.obstacle
+    }
+
+    obstacleCellCount = 0
+
+    for (let index = 0; index < grid.length; index += 1) {
+      if ((grid[index]! & GridCellFlags.obstacle) !== 0) {
+        obstacleCellCount += 1
+      }
+    }
 
     this.output = {
       traceCount,
@@ -326,8 +551,9 @@ export class GridBuilderSolver extends BaseSolver {
       gridHeight,
       grid,
       obstacleCellCount,
-      startCell,
-      endCell,
+      busConnectedObstacleIndices,
+      startArea,
+      endArea,
     }
     this.stats = {
       phase: "done",
@@ -339,8 +565,9 @@ export class GridBuilderSolver extends BaseSolver {
       gridWidth,
       gridHeight,
       obstacleCellCount,
-      startCell: `${startCell.column},${startCell.row}`,
-      endCell: `${endCell.column},${endCell.row}`,
+      busConnectedObstacleCount: busConnectedObstacleIndices.length,
+      startAreaCell: `${startArea.centerCell.column},${startArea.centerCell.row}`,
+      endAreaCell: `${endArea.centerCell.column},${endArea.centerCell.row}`,
     }
     this.solved = true
   }
@@ -358,55 +585,11 @@ export class GridBuilderSolver extends BaseSolver {
       }
     }
 
-    const summaryLines = [
-      `Trace count: ${this.output.traceCount}`,
-      `Required bus width: ${this.output.requiredBusWidth.toFixed(3)}`,
-      `Grid cell size: ${this.output.cellSize.toFixed(3)}`,
-      `Grid size: ${this.output.gridWidth} x ${this.output.gridHeight}`,
-      `Obstacle cells: ${this.output.obstacleCellCount}`,
-    ]
-    const texts = createSummaryTexts(
-      this.output.bounds,
-      this.output.cellSize,
-      summaryLines,
-    )
-
-    texts.push({
-      x: this.output.startCell.center.x,
-      y: this.output.startCell.center.y + this.output.cellSize * 0.7,
-      text: "Bus Start",
-      fontSize: Math.max(4, this.output.cellSize * 0.65),
-      color: GRID_START_STROKE,
-    })
-    texts.push({
-      x: this.output.endCell.center.x,
-      y: this.output.endCell.center.y + this.output.cellSize * 0.7,
-      text: "Bus End",
-      fontSize: Math.max(4, this.output.cellSize * 0.65),
-      color: GRID_END_STROKE,
-    })
-
-    return {
+    return createGridBuilderVisualization({
+      inputProblem: this.params.inputProblem,
+      output: this.output,
       title: "Stage 2 - Build Grid",
-      coordinateSystem: "cartesian",
-      points: [],
-      lines: [],
-      rects: [
-        ...createObstacleCellRects(this.output),
-        ...createTerminalCellRects(this.output),
-        {
-          center: {
-            x: (this.output.bounds.minX + this.output.bounds.maxX) / 2,
-            y: (this.output.bounds.minY + this.output.bounds.maxY) / 2,
-          },
-          width: this.output.gridWidth * this.output.cellSize,
-          height: this.output.gridHeight * this.output.cellSize,
-          stroke: GRID_BORDER_STROKE,
-        },
-      ],
-      circles: [],
-      texts,
-    }
+    })
   }
 
   override getOutput(): GridBuilderOutput | null {
