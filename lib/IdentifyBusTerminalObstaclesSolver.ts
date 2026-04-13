@@ -32,6 +32,7 @@ export interface BusDefinition {
 export interface BusRouterInput {
   obstacles: BusObstacle[]
   bus: BusDefinition
+  traceWidth?: number
 }
 
 export interface BusObstacleGroup {
