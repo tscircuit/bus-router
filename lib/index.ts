@@ -1,4 +1,5 @@
 export * from "./IdentifyBusTerminalObstaclesSolver"
 export * from "./GridBuilderSolver"
 export * from "./FindFanoutStartEndSolver"
+export * from "./FindBusPathSolver"
 export * from "./BusRoutePipeline"

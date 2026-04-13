@@ -277,7 +277,6 @@ const createRegionLineGraphic = (params: {
 }): Line => ({
   points: [params.line.start, params.line.end],
   strokeColor: params.color,
-  strokeWidth: 1.5,
   label: params.label,
 })
 
@@ -293,6 +292,112 @@ const createCandidateTexts = (params: {
     fontSize: 4.5,
     color: params.color,
   }))
+
+export const createFindFanoutStartEndVisualization = (params: {
+  inputProblem: BusRouterInput
+  grid: GridBuilderOutput
+  output: FindFanoutStartEndOutput
+  title: string
+  extraLines?: NonNullable<GraphicsObject["lines"]>
+  extraRects?: NonNullable<GraphicsObject["rects"]>
+  extraCircles?: NonNullable<GraphicsObject["circles"]>
+  extraTexts?: NonNullable<GraphicsObject["texts"]>
+  extraPoints?: NonNullable<GraphicsObject["points"]>
+}): GraphicsObject => {
+  const fanoutTexts = createCandidateTexts({
+    candidates: params.output.fanoutCandidates,
+    color: FANOUT_COLOR,
+    prefix: "Fanout",
+  })
+  const faninTexts = createCandidateTexts({
+    candidates: params.output.faninCandidates,
+    color: FANIN_COLOR,
+    prefix: "Fanin",
+  })
+
+  return createGridBuilderVisualization({
+    inputProblem: params.inputProblem,
+    output: params.grid,
+    title: params.title,
+    extraLines: [
+      createRegionLineGraphic({
+        line: params.output.fanoutRegionLine,
+        color: FANOUT_COLOR,
+        label: "fanout-area-line",
+      }),
+      createRegionLineGraphic({
+        line: params.output.faninRegionLine,
+        color: FANIN_COLOR,
+        label: "fanin-area-line",
+      }),
+      {
+        points: [
+          params.output.selectedFanoutCandidate.cell.center,
+          params.output.selectedFaninCandidate.cell.center,
+        ],
+        strokeColor: SELECTED_COLOR,
+        label: "selected-fanout-fanin-pair",
+      },
+      ...(params.extraLines ?? []),
+    ],
+    extraRects: params.extraRects,
+    extraCircles: [
+      ...params.output.fanoutCandidates.map((candidate) => ({
+        center: candidate.cell.center,
+        radius: params.grid.cellSize * 0.22,
+        fill: "rgba(37, 99, 235, 0.35)",
+        stroke: FANOUT_COLOR,
+        label: "fanout-candidate",
+      })),
+      ...params.output.faninCandidates.map((candidate) => ({
+        center: candidate.cell.center,
+        radius: params.grid.cellSize * 0.22,
+        fill: "rgba(245, 158, 11, 0.35)",
+        stroke: FANIN_COLOR,
+        label: "fanin-candidate",
+      })),
+      {
+        center: params.output.selectedFanoutCandidate.cell.center,
+        radius: params.grid.cellSize * 0.3,
+        fill: "rgba(22, 163, 74, 0.35)",
+        stroke: SELECTED_COLOR,
+        label: "selected-fanout",
+      },
+      {
+        center: params.output.selectedFaninCandidate.cell.center,
+        radius: params.grid.cellSize * 0.3,
+        fill: "rgba(22, 163, 74, 0.35)",
+        stroke: SELECTED_COLOR,
+        label: "selected-fanin",
+      },
+      ...(params.extraCircles ?? []),
+    ],
+    extraTexts: [
+      ...fanoutTexts,
+      ...faninTexts,
+      {
+        x: params.output.selectedFanoutCandidate.cell.center.x,
+        y:
+          params.output.selectedFanoutCandidate.cell.center.y -
+          params.grid.cellSize * 0.8,
+        text: "Selected Fanout",
+        fontSize: 4.5,
+        color: SELECTED_COLOR,
+      },
+      {
+        x: params.output.selectedFaninCandidate.cell.center.x,
+        y:
+          params.output.selectedFaninCandidate.cell.center.y -
+          params.grid.cellSize * 0.8,
+        text: "Selected Fanin",
+        fontSize: 4.5,
+        color: SELECTED_COLOR,
+      },
+      ...(params.extraTexts ?? []),
+    ],
+    extraPoints: params.extraPoints,
+  })
+}
 
 export class FindFanoutStartEndSolver extends BaseSolver {
   private output: FindFanoutStartEndOutput | null = null
@@ -409,94 +514,11 @@ export class FindFanoutStartEndSolver extends BaseSolver {
       }
     }
 
-    const fanoutTexts = createCandidateTexts({
-      candidates: this.output.fanoutCandidates,
-      color: FANOUT_COLOR,
-      prefix: "Fanout",
-    })
-    const faninTexts = createCandidateTexts({
-      candidates: this.output.faninCandidates,
-      color: FANIN_COLOR,
-      prefix: "Fanin",
-    })
-
-    return createGridBuilderVisualization({
+    return createFindFanoutStartEndVisualization({
       inputProblem: this.params.inputProblem,
-      output: this.params.grid,
+      grid: this.params.grid,
+      output: this.output,
       title: "Stage 3 - Find Fanout Start/End",
-      extraLines: [
-        createRegionLineGraphic({
-          line: this.output.fanoutRegionLine,
-          color: FANOUT_COLOR,
-          label: "fanout-area-line",
-        }),
-        createRegionLineGraphic({
-          line: this.output.faninRegionLine,
-          color: FANIN_COLOR,
-          label: "fanin-area-line",
-        }),
-        {
-          points: [
-            this.output.selectedFanoutCandidate.cell.center,
-            this.output.selectedFaninCandidate.cell.center,
-          ],
-          strokeColor: SELECTED_COLOR,
-          strokeWidth: 2,
-          label: "selected-fanout-fanin-pair",
-        },
-      ],
-      extraCircles: [
-        ...this.output.fanoutCandidates.map((candidate) => ({
-          center: candidate.cell.center,
-          radius: this.params.grid.cellSize * 0.22,
-          fill: "rgba(37, 99, 235, 0.35)",
-          stroke: FANOUT_COLOR,
-          label: "fanout-candidate",
-        })),
-        ...this.output.faninCandidates.map((candidate) => ({
-          center: candidate.cell.center,
-          radius: this.params.grid.cellSize * 0.22,
-          fill: "rgba(245, 158, 11, 0.35)",
-          stroke: FANIN_COLOR,
-          label: "fanin-candidate",
-        })),
-        {
-          center: this.output.selectedFanoutCandidate.cell.center,
-          radius: this.params.grid.cellSize * 0.3,
-          fill: "rgba(22, 163, 74, 0.35)",
-          stroke: SELECTED_COLOR,
-          label: "selected-fanout",
-        },
-        {
-          center: this.output.selectedFaninCandidate.cell.center,
-          radius: this.params.grid.cellSize * 0.3,
-          fill: "rgba(22, 163, 74, 0.35)",
-          stroke: SELECTED_COLOR,
-          label: "selected-fanin",
-        },
-      ],
-      extraTexts: [
-        ...fanoutTexts,
-        ...faninTexts,
-        {
-          x: this.output.selectedFanoutCandidate.cell.center.x,
-          y:
-            this.output.selectedFanoutCandidate.cell.center.y -
-            this.params.grid.cellSize * 0.8,
-          text: "Selected Fanout",
-          fontSize: 4.5,
-          color: SELECTED_COLOR,
-        },
-        {
-          x: this.output.selectedFaninCandidate.cell.center.x,
-          y:
-            this.output.selectedFaninCandidate.cell.center.y -
-            this.params.grid.cellSize * 0.8,
-          text: "Selected Fanin",
-          fontSize: 4.5,
-          color: SELECTED_COLOR,
-        },
-      ],
     })
   }
 

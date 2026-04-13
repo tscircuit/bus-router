@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import { BusRoutePipeline } from "lib/BusRoutePipeline"
+import { FindBusPathSolver } from "lib/FindBusPathSolver"
 import { FindFanoutStartEndSolver } from "lib/FindFanoutStartEndSolver"
 import { GridBuilderSolver, GridCellFlags } from "lib/GridBuilderSolver"
 import { IdentifyBusTerminalObstaclesSolver } from "lib/IdentifyBusTerminalObstaclesSolver"
@@ -27,6 +28,21 @@ test("IdentifyBusTerminalObstaclesSolver splits the example bus into two obstacl
   expect(output?.busStart.centroid.x).toBeLessThan(
     output?.busEnd.centroid.x ?? 0,
   )
+})
+
+test("BusRoutePipeline initialVisualize shows the SRJ obstacle set before pipeline stages", () => {
+  const solver = new BusRoutePipeline(exampleInput)
+
+  const visualization = solver.initialVisualize()
+
+  expect(visualization).not.toBeNull()
+  expect(visualization?.title).toBe("Initial SRJ")
+  expect(visualization?.rects).toHaveLength(exampleSrj.obstacles.length)
+  expect(
+    visualization?.texts?.some((text) =>
+      text.text.startsWith(`SRJ obstacles: ${exampleSrj.obstacles.length}`),
+    ),
+  ).toBe(true)
 })
 
 test("GridBuilderSolver builds a half-bus-size grid and keeps bus-connected obstacles out of obstacle occupancy", () => {
@@ -144,31 +160,109 @@ test("FindFanoutStartEndSolver finds candidate fanout and fanin positions and se
   ).toBe(true)
 })
 
-test("BusRoutePipeline runs through fanout/fanin selection and visualizes the selected pair", () => {
+test("FindBusPathSolver steps through A* candidates and exposes the current path in visualize()", () => {
+  const identifySolver = new IdentifyBusTerminalObstaclesSolver(exampleInput)
+
+  identifySolver.solve()
+
+  const gridBuilderSolver = new GridBuilderSolver({
+    inputProblem: exampleInput,
+    terminalObstacles: identifySolver.getOutput()!,
+  })
+
+  gridBuilderSolver.solve()
+
+  const fanoutStartEndSolver = new FindFanoutStartEndSolver({
+    inputProblem: exampleInput,
+    grid: gridBuilderSolver.getOutput()!,
+  })
+
+  fanoutStartEndSolver.solve()
+
+  const solver = new FindBusPathSolver({
+    inputProblem: exampleInput,
+    grid: gridBuilderSolver.getOutput()!,
+    fanoutStartEnd: fanoutStartEndSolver.getOutput()!,
+  })
+
+  solver.step()
+  solver.step()
+
+  const steppedVisualization = solver.visualize()
+
+  expect(solver.solved).toBe(false)
+  expect(
+    steppedVisualization.lines?.some((line) => line.label === "current-path"),
+  ).toBe(true)
+  expect(
+    steppedVisualization.rects?.some(
+      (rect) => rect.label === "current-path-cell",
+    ),
+  ).toBe(true)
+  expect(
+    steppedVisualization.circles?.some(
+      (circle) => circle.label === "current-candidate",
+    ),
+  ).toBe(true)
+
+  solver.solve()
+
+  const output = solver.getOutput()
+  const visualization = solver.visualize()
+
+  expect(solver.solved).toBe(true)
+  expect(solver.failed).toBe(false)
+  expect(output).not.toBeNull()
+  expect(output?.path.length).toBeGreaterThan(2)
+  expect(output?.pathCost).toBeGreaterThan(0)
+  expect(output?.greedyMultiplier).toBeCloseTo(1.5)
+  expect(output?.obstacleSearchCells).toBe(3)
+  expect(output?.obstacleProximityPenalty).toBeCloseTo(5.25)
+  expect(output?.faninCell.index).toBe(
+    fanoutStartEndSolver.getOutput()?.selectedFaninCandidate.cell.index,
+  )
+  expect(output?.fanoutCell.index).toBe(
+    fanoutStartEndSolver.getOutput()?.selectedFanoutCandidate.cell.index,
+  )
+  expect(
+    visualization.lines?.some((line) => line.label === "current-path"),
+  ).toBe(true)
+  expect(
+    visualization.circles?.some(
+      (circle) => circle.label === "current-candidate",
+    ),
+  ).toBe(true)
+})
+
+test("BusRoutePipeline runs through bus path finding and visualizes the current/final path", () => {
   const solver = new BusRoutePipeline(exampleInput)
 
   solver.solve()
 
   const output = solver.getOutput()
   const gridOutput = solver.getStageOutput("gridBuilderSolver")
+  const fanoutOutput = solver.getStageOutput("findFanoutStartEndSolver")
   const visualization = solver.visualize()
 
   expect(solver.solved).toBe(true)
   expect(solver.failed).toBe(false)
   expect(gridOutput).not.toBeNull()
+  expect(fanoutOutput).not.toBeNull()
   expect(output).not.toBeNull()
   expect(gridOutput?.cellSize).toBeCloseTo(1.05)
-  expect(output?.fanoutCandidates.length).toBeGreaterThan(0)
-  expect(output?.faninCandidates.length).toBeGreaterThan(0)
+  expect(output?.path.length).toBeGreaterThan(2)
+  expect(output?.pathCost).toBeGreaterThan(0)
   expect(
     visualization.lines?.some(
       (line) => line.label === "selected-fanout-fanin-pair",
     ),
   ).toBe(true)
   expect(
-    visualization.circles?.some((circle) => circle.label === "selected-fanout"),
+    visualization.lines?.some((line) => line.label === "current-path"),
   ).toBe(true)
   expect(
-    visualization.circles?.some((circle) => circle.label === "selected-fanin"),
+    visualization.circles?.some(
+      (circle) => circle.label === "current-candidate",
+    ),
   ).toBe(true)
 })

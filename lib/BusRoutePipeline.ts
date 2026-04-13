@@ -15,11 +15,13 @@ import {
   FindFanoutStartEndSolver,
   type FindFanoutStartEndOutput,
 } from "./FindFanoutStartEndSolver"
+import { FindBusPathSolver, type FindBusPathOutput } from "./FindBusPathSolver"
 
 export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
   identifyBusTerminalObstaclesSolver?: IdentifyBusTerminalObstaclesSolver
   gridBuilderSolver?: GridBuilderSolver
   findFanoutStartEndSolver?: FindFanoutStartEndSolver
+  findBusPathSolver?: FindBusPathSolver
 
   override pipelineDef: PipelineStep<any>[] = [
     definePipelineStep(
@@ -52,37 +54,37 @@ export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
         },
       ],
     ),
+    definePipelineStep(
+      "findBusPathSolver",
+      FindBusPathSolver,
+      (instance: BusRoutePipeline) => [
+        {
+          inputProblem: instance.inputProblem,
+          grid: instance.getStageOutput<GridBuilderOutput>(
+            "gridBuilderSolver",
+          )!,
+          fanoutStartEnd: instance.getStageOutput<FindFanoutStartEndOutput>(
+            "findFanoutStartEndSolver",
+          )!,
+        },
+      ],
+    ),
   ]
 
-  override getOutput(): FindFanoutStartEndOutput | null {
-    return this.findFanoutStartEndSolver?.getOutput() ?? null
-  }
-
-  override visualize(): GraphicsObject {
-    if (this.activeSubSolver) {
-      return this.activeSubSolver.visualize()
-    }
-
-    if (this.findFanoutStartEndSolver) {
-      return this.findFanoutStartEndSolver.visualize()
-    }
-
-    if (this.gridBuilderSolver) {
-      return this.gridBuilderSolver.visualize()
-    }
-
-    if (this.identifyBusTerminalObstaclesSolver) {
-      return this.identifyBusTerminalObstaclesSolver.visualize()
-    }
-
+  override initialVisualize(): GraphicsObject | null {
     return createBusTerminalObstacleVisualization({
       obstacles: this.inputProblem.obstacles,
       highlightedObstacleIndices: new Set<number>(),
       summaryLines: [
-        "Stage 1: Identify the obstacle groups for bus start and bus end.",
+        `SRJ obstacles: ${this.inputProblem.obstacles.length}`,
+        `Bus traces: ${this.inputProblem.bus.connectionPatches.length}`,
       ],
-      title: "Bus Router - Initial Obstacles",
+      title: "Initial SRJ",
     })
+  }
+
+  override getOutput(): FindBusPathOutput | null {
+    return this.findBusPathSolver?.getOutput() ?? null
   }
 
   override getConstructorParams() {
