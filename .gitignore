@@ -38,3 +38,4 @@ cosmos-export
 bun.lock
 bun.lockb
 .cursor
+.vercel
