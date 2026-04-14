@@ -16,12 +16,17 @@ import {
   type FindFanoutStartEndOutput,
 } from "./FindFanoutStartEndSolver"
 import { FindBusPathSolver, type FindBusPathOutput } from "./FindBusPathSolver"
+import {
+  SplitIntoTracePathsSolver,
+  type SplitIntoTracePathsOutput,
+} from "./SplitIntoTracePathsSolver"
 
 export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
   identifyBusTerminalObstaclesSolver?: IdentifyBusTerminalObstaclesSolver
   gridBuilderSolver?: GridBuilderSolver
   findFanoutStartEndSolver?: FindFanoutStartEndSolver
   findBusPathSolver?: FindBusPathSolver
+  splitIntoTracePathsSolver?: SplitIntoTracePathsSolver
 
   override pipelineDef: PipelineStep<any>[] = [
     definePipelineStep(
@@ -69,6 +74,24 @@ export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
         },
       ],
     ),
+    definePipelineStep(
+      "splitIntoTracePathsSolver",
+      SplitIntoTracePathsSolver,
+      (instance: BusRoutePipeline) => [
+        {
+          inputProblem: instance.inputProblem,
+          grid: instance.getStageOutput<GridBuilderOutput>(
+            "gridBuilderSolver",
+          )!,
+          fanoutStartEnd: instance.getStageOutput<FindFanoutStartEndOutput>(
+            "findFanoutStartEndSolver",
+          )!,
+          busPath: instance.getStageOutput<FindBusPathOutput>(
+            "findBusPathSolver",
+          )!,
+        },
+      ],
+    ),
   ]
 
   override initialVisualize(): GraphicsObject | null {
@@ -83,8 +106,8 @@ export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
     })
   }
 
-  override getOutput(): FindBusPathOutput | null {
-    return this.findBusPathSolver?.getOutput() ?? null
+  override getOutput(): SplitIntoTracePathsOutput | null {
+    return this.splitIntoTracePathsSolver?.getOutput() ?? null
   }
 
   override getConstructorParams() {
