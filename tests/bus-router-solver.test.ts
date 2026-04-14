@@ -7,6 +7,86 @@ import { IdentifyBusTerminalObstaclesSolver } from "lib/IdentifyBusTerminalObsta
 import exampleBus from "./assets/CM5IO_bus1.json"
 import exampleSrj from "./assets/CM5IO.srj.json"
 
+const getCandidateDirectionVector = (
+  orientation: "horizontal" | "vertical",
+  direction: "negative" | "positive",
+) =>
+  orientation === "horizontal"
+    ? {
+        columnStep: 0,
+        rowStep: direction === "negative" ? -1 : 1,
+      }
+    : {
+        columnStep: direction === "negative" ? -1 : 1,
+        rowStep: 0,
+      }
+
+const invertDirectionVector = (direction: {
+  columnStep: number
+  rowStep: number
+}) => ({
+  columnStep: direction.columnStep === 0 ? 0 : -direction.columnStep,
+  rowStep: direction.rowStep === 0 ? 0 : -direction.rowStep,
+})
+
+const getPathDeltas = (
+  path: Array<{
+    column: number
+    row: number
+  }>,
+) =>
+  path.slice(1).map((cell, index) => ({
+    columnStep: cell.column - path[index]!.column,
+    rowStep: cell.row - path[index]!.row,
+  }))
+
+const getDirectionRuns = (
+  deltas: Array<{
+    columnStep: number
+    rowStep: number
+  }>,
+) => {
+  if (deltas.length === 0) {
+    return []
+  }
+
+  const runs: Array<{
+    columnStep: number
+    rowStep: number
+    length: number
+  }> = []
+  let currentDelta = deltas[0]!
+  let currentLength = 1
+
+  for (let index = 1; index < deltas.length; index += 1) {
+    const nextDelta = deltas[index]!
+
+    if (
+      nextDelta.columnStep === currentDelta.columnStep &&
+      nextDelta.rowStep === currentDelta.rowStep
+    ) {
+      currentLength += 1
+      continue
+    }
+
+    runs.push({
+      columnStep: currentDelta.columnStep,
+      rowStep: currentDelta.rowStep,
+      length: currentLength,
+    })
+    currentDelta = nextDelta
+    currentLength = 1
+  }
+
+  runs.push({
+    columnStep: currentDelta.columnStep,
+    rowStep: currentDelta.rowStep,
+    length: currentLength,
+  })
+
+  return runs
+}
+
 const exampleInput = {
   obstacles: exampleSrj.obstacles,
   bus: exampleBus,
@@ -160,7 +240,7 @@ test("FindFanoutStartEndSolver finds candidate fanout and fanin positions and se
   ).toBe(true)
 })
 
-test("FindBusPathSolver steps through A* candidates and exposes the current path in visualize()", () => {
+test("FindBusPathSolver steps through A* candidates and enforces diagonal and direction-run path constraints", () => {
   const identifySolver = new IdentifyBusTerminalObstaclesSolver(exampleInput)
 
   identifySolver.solve()
@@ -209,6 +289,19 @@ test("FindBusPathSolver steps through A* candidates and exposes the current path
 
   const output = solver.getOutput()
   const visualization = solver.visualize()
+  const fanoutStartEnd = fanoutStartEndSolver.getOutput()!
+  const pathDeltas = getPathDeltas(output?.path ?? [])
+  const directionRuns = getDirectionRuns(pathDeltas)
+  const expectedFaninDirection = getCandidateDirectionVector(
+    fanoutStartEnd.faninRegionLine.orientation,
+    fanoutStartEnd.selectedFaninCandidate.direction,
+  )
+  const expectedFanoutApproachDirection = invertDirectionVector(
+    getCandidateDirectionVector(
+      fanoutStartEnd.fanoutRegionLine.orientation,
+      fanoutStartEnd.selectedFanoutCandidate.direction,
+    ),
+  )
 
   expect(solver.solved).toBe(true)
   expect(solver.failed).toBe(false)
@@ -224,6 +317,17 @@ test("FindBusPathSolver steps through A* candidates and exposes the current path
   expect(output?.fanoutCell.index).toBe(
     fanoutStartEndSolver.getOutput()?.selectedFanoutCandidate.cell.index,
   )
+  expect(pathDeltas[0]).toEqual(expectedFaninDirection)
+  expect(pathDeltas[1]).toEqual(expectedFaninDirection)
+  expect(pathDeltas.at(-1)).toEqual(expectedFanoutApproachDirection)
+  expect(pathDeltas.at(-2)).toEqual(expectedFanoutApproachDirection)
+  expect(
+    pathDeltas.some(
+      (delta) =>
+        Math.abs(delta.columnStep) === 1 && Math.abs(delta.rowStep) === 1,
+    ),
+  ).toBe(true)
+  expect(directionRuns.every((run) => run.length >= 2)).toBe(true)
   expect(
     visualization.lines?.some((line) => line.label === "current-path"),
   ).toBe(true)
