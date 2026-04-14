@@ -333,6 +333,8 @@ const getMinimumTracePathDistance = (
 const exampleInput = {
   obstacles: exampleSrj.obstacles,
   bus: exampleBus,
+  traceWidth: 0.1,
+  traceSpacing: 0.5,
 }
 
 test("IdentifyBusTerminalObstaclesSolver splits the example bus into two obstacle groups", () => {
@@ -396,8 +398,10 @@ test("GridBuilderSolver builds a half-bus-size grid and keeps bus-connected obst
   expect(output).not.toBeNull()
   expect(output?.grid).toBeInstanceOf(Int32Array)
   expect(output?.traceCount).toBe(9)
-  expect(output?.requiredBusWidth).toBeCloseTo(2.1)
-  expect(output?.cellSize).toBeCloseTo(1.05)
+  expect(output?.traceWidth).toBeCloseTo(0.1)
+  expect(output?.traceSpacing).toBeCloseTo(0.5)
+  expect(output?.requiredBusWidth).toBeCloseTo(4.9)
+  expect(output?.cellSize).toBeCloseTo(2.45)
   expect(output?.gridWidth).toBeGreaterThan(0)
   expect(output?.gridHeight).toBeGreaterThan(0)
   expect(output?.obstacleCellCount).toBeGreaterThan(0)
@@ -553,7 +557,8 @@ test("FindBusPathSolver steps through A* candidates and enforces diagonal and di
   expect(output?.pathCost).toBeGreaterThan(0)
   expect(output?.greedyMultiplier).toBeCloseTo(1.5)
   expect(output?.obstacleSearchCells).toBe(10)
-  expect(output?.obstacleProximityPenalty).toBeCloseTo(5.25)
+  expect(output?.obstacleProximityPenalty).toBeCloseTo(12.25)
+  expect(output?.ninetyDegreeTurnPenalty).toBeCloseTo(4.9)
   expect(output?.faninCell.index).toBe(
     fanoutStartEndSolver.getOutput()?.selectedFaninCandidate.cell.index,
   )
@@ -634,7 +639,7 @@ test("SplitIntoTracePathsSolver expands the centerline bus path into per-trace p
   expect(solver.failed).toBe(false)
   expect(output).not.toBeNull()
   expect(output?.tracePaths).toHaveLength(gridBuilderSolver.getOutput()?.traceCount ?? 0)
-  expect(output?.tracePitch).toBeCloseTo(0.25)
+  expect(output?.tracePitch).toBeCloseTo(0.6)
   expect(output?.centerlineRunCount).toBeGreaterThan(1)
   expect(output?.turnCount).toBe(output ? output.centerlineRunCount - 1 : 0)
   expect(
@@ -675,7 +680,7 @@ test("BusRoutePipeline runs through bus path finding and visualizes the current/
   expect(gridOutput).not.toBeNull()
   expect(fanoutOutput).not.toBeNull()
   expect(output).not.toBeNull()
-  expect(gridOutput?.cellSize).toBeCloseTo(1.05)
+  expect(gridOutput?.cellSize).toBeCloseTo(2.45)
   expect(output?.path.length).toBeGreaterThan(2)
   expect(output?.pathCost).toBeGreaterThan(0)
   expect(output?.tracePaths).toHaveLength(9)

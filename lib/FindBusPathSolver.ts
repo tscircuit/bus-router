@@ -18,6 +18,7 @@ const DEFAULT_GREEDY_MULTIPLIER = 1.5
 const DEFAULT_OBSTACLE_SEARCH_CELLS = 10
 const MIN_DIRECTION_STREAK = 2
 const FORCED_ENDPOINT_STEPS = 2
+const DEFAULT_NINETY_DEGREE_TURN_PENALTY_MULTIPLIER = 2
 const CURRENT_PATH_COLOR = "#14b8a6"
 const CURRENT_CANDIDATE_COLOR = "#f97316"
 
@@ -54,6 +55,7 @@ export interface FindBusPathSolverInput {
   greedyMultiplier?: number
   obstacleSearchCells?: number
   obstacleProximityPenalty?: number
+  ninetyDegreeTurnPenalty?: number
 }
 
 export interface FindBusPathOutput {
@@ -67,6 +69,7 @@ export interface FindBusPathOutput {
   greedyMultiplier: number
   obstacleSearchCells: number
   obstacleProximityPenalty: number
+  ninetyDegreeTurnPenalty: number
 }
 
 const ALL_MOVE_DIRECTIONS: MoveDirection[] = [
@@ -113,6 +116,14 @@ const isSameDirection = (
 ): boolean =>
   directionA.columnStep === directionB.columnStep &&
   directionA.rowStep === directionB.rowStep
+
+const isNinetyDegreeTurn = (
+  directionA: MoveDirection,
+  directionB: MoveDirection,
+): boolean =>
+  directionA.columnStep * directionB.columnStep +
+    directionA.rowStep * directionB.rowStep ===
+  0
 
 const invertDirection = (direction: MoveDirection): MoveDirection => ({
   columnStep: -direction.columnStep,
@@ -178,6 +189,7 @@ export class FindBusPathSolver extends BaseSolver {
   private readonly greedyMultiplier: number
   private readonly obstacleSearchCells: number
   private readonly obstacleProximityPenalty: number
+  private readonly ninetyDegreeTurnPenalty: number
   private readonly faninCell: GridCellAddress
   private readonly fanoutCell: GridCellAddress
   private readonly faninCorridor: TerminalCorridor | null
@@ -199,6 +211,9 @@ export class FindBusPathSolver extends BaseSolver {
     )
     this.obstacleProximityPenalty =
       params.obstacleProximityPenalty ?? params.grid.cellSize * 5
+    this.ninetyDegreeTurnPenalty =
+      params.ninetyDegreeTurnPenalty ??
+      params.grid.cellSize * DEFAULT_NINETY_DEGREE_TURN_PENALTY_MULTIPLIER
     this.faninCell = params.fanoutStartEnd.selectedFaninCandidate.cell
     this.fanoutCell = params.fanoutStartEnd.selectedFanoutCandidate.cell
     this.maxSearchStates =
@@ -395,6 +410,20 @@ export class FindBusPathSolver extends BaseSolver {
     return this.params.grid.cellSize + obstacleProximityCost
   }
 
+  private getTransitionCost(
+    nextCell: GridCellAddress,
+    currentRecord: PathCandidateRecord,
+    nextDirection: MoveDirection,
+  ): number {
+    const rightAngleTurnPenalty =
+      !isSameDirection(currentRecord.direction, nextDirection) &&
+      isNinetyDegreeTurn(currentRecord.direction, nextDirection)
+        ? this.ninetyDegreeTurnPenalty
+        : 0
+
+    return this.getStepCost(nextCell) + rightAngleTurnPenalty
+  }
+
   private getForcedSegmentCost(cells: GridCellAddress[]): number {
     let cost = 0
 
@@ -570,6 +599,7 @@ export class FindBusPathSolver extends BaseSolver {
       greedyMultiplier: this.greedyMultiplier,
       obstacleSearchCells: this.obstacleSearchCells,
       obstacleProximityPenalty: this.obstacleProximityPenalty,
+      ninetyDegreeTurnPenalty: this.ninetyDegreeTurnPenalty,
       initializationError: this.initializationError,
     }
   }
@@ -621,6 +651,7 @@ export class FindBusPathSolver extends BaseSolver {
         greedyMultiplier: this.greedyMultiplier,
         obstacleSearchCells: this.obstacleSearchCells,
         obstacleProximityPenalty: this.obstacleProximityPenalty,
+        ninetyDegreeTurnPenalty: this.ninetyDegreeTurnPenalty,
       }
       this.solved = true
       this.updateStats("done")
@@ -646,7 +677,9 @@ export class FindBusPathSolver extends BaseSolver {
         neighborColumn,
         neighborRow,
       )
-      const tentativeG = currentRecord.g + this.getStepCost(neighborCell)
+      const tentativeG =
+        currentRecord.g +
+        this.getTransitionCost(neighborCell, currentRecord, direction)
       const nextRecord = this.createCandidateRecord({
         cell: neighborCell,
         parentStateKey: currentRecord.stateKey,

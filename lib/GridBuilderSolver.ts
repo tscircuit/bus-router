@@ -8,7 +8,7 @@ import type {
 } from "./IdentifyBusTerminalObstaclesSolver"
 
 const DEFAULT_TRACE_WIDTH = 0.1
-const ADJACENT_TRACE_SPACING = 0.15
+const DEFAULT_TRACE_SPACING = 0.5
 const GRID_PADDING_IN_BUS_WIDTHS = 1
 
 const GRID_OBSTACLE = 1 << 0
@@ -371,8 +371,9 @@ export const createGridBuilderVisualization = (params: {
 const computeRequiredBusWidth = (
   traceCount: number,
   traceWidth: number,
+  traceSpacing: number,
 ): number =>
-  traceCount * traceWidth + Math.max(0, traceCount - 1) * ADJACENT_TRACE_SPACING
+  traceCount * traceWidth + Math.max(0, traceCount - 1) * traceSpacing
 
 export class GridBuilderSolver extends BaseSolver {
   private output: GridBuilderOutput | null = null
@@ -381,14 +382,20 @@ export class GridBuilderSolver extends BaseSolver {
     super()
     const traceCount = getTraceCount(params.inputProblem)
     const traceWidth = params.inputProblem.traceWidth ?? DEFAULT_TRACE_WIDTH
-    const requiredBusWidth = computeRequiredBusWidth(traceCount, traceWidth)
+    const traceSpacing =
+      params.inputProblem.traceSpacing ?? DEFAULT_TRACE_SPACING
+    const requiredBusWidth = computeRequiredBusWidth(
+      traceCount,
+      traceWidth,
+      traceSpacing,
+    )
 
     this.MAX_ITERATIONS = 1
     this.stats = {
       phase: "build-grid",
       traceCount,
       traceWidth,
-      traceSpacing: ADJACENT_TRACE_SPACING,
+      traceSpacing,
       requiredBusWidth,
     }
   }
@@ -397,7 +404,13 @@ export class GridBuilderSolver extends BaseSolver {
     const traceCount = getTraceCount(this.params.inputProblem)
     const traceWidth =
       this.params.inputProblem.traceWidth ?? DEFAULT_TRACE_WIDTH
-    const requiredBusWidth = computeRequiredBusWidth(traceCount, traceWidth)
+    const traceSpacing =
+      this.params.inputProblem.traceSpacing ?? DEFAULT_TRACE_SPACING
+    const requiredBusWidth = computeRequiredBusWidth(
+      traceCount,
+      traceWidth,
+      traceSpacing,
+    )
     const cellSize = requiredBusWidth / 2
     const obstacleBounds = getObstacleBounds(this.params.inputProblem.obstacles)
     const padding = requiredBusWidth * GRID_PADDING_IN_BUS_WIDTHS
@@ -542,7 +555,7 @@ export class GridBuilderSolver extends BaseSolver {
     this.output = {
       traceCount,
       traceWidth,
-      traceSpacing: ADJACENT_TRACE_SPACING,
+      traceSpacing,
       requiredBusWidth,
       cellSize,
       origin,
@@ -559,7 +572,7 @@ export class GridBuilderSolver extends BaseSolver {
       phase: "done",
       traceCount,
       traceWidth,
-      traceSpacing: ADJACENT_TRACE_SPACING,
+      traceSpacing,
       requiredBusWidth,
       cellSize,
       gridWidth,
