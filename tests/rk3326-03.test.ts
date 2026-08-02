@@ -1,10 +1,18 @@
-import { test } from "bun:test"
+import { expect, test } from "bun:test"
+import { BusRoutePipeline } from "lib/BusRoutePipeline"
 import { rk3326_03 } from "./fixtures/rk3326"
-import { expectRk3326ReproToRoute } from "./fixtures/run-rk3326-repro"
+import { getRk3326OutputVisualization } from "./fixtures/run-rk3326-repro"
 
-test.skip("rk3326-03 routes the USB OTG bus diagonally between fanouts", () => {
-  // Current failure: FindBusPathSolver cannot extend the selected fanin
-  // corridor two cells away from the bus. Keep the debugger page available as
-  // the executable reproduction until the endpoint strategy is fixed.
-  expectRk3326ReproToRoute(rk3326_03)
+test("rk3326-03 captures the USB OTG diagonal fanout failure", async () => {
+  const solver = new BusRoutePipeline(rk3326_03)
+
+  solver.solve()
+
+  expect(solver.failed).toBe(true)
+  expect(solver.error).toBe(
+    "Unable to extend the selected fanin corridor 2 cells away from the bus.",
+  )
+  await expect(
+    getRk3326OutputVisualization(rk3326_03, solver),
+  ).toMatchGraphicsSvg(import.meta.path)
 })
