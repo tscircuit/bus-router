@@ -307,7 +307,11 @@ const getMinimumTracePathDistance = (
       const pointsA = tracePaths[pathIndexA]!.points
       const pointsB = tracePaths[pathIndexB]!.points
 
-      for (let segmentAIndex = 1; segmentAIndex < pointsA.length; segmentAIndex += 1) {
+      for (
+        let segmentAIndex = 1;
+        segmentAIndex < pointsA.length;
+        segmentAIndex += 1
+      ) {
         for (
           let segmentBIndex = 1;
           segmentBIndex < pointsB.length;
@@ -638,7 +642,9 @@ test("SplitIntoTracePathsSolver expands the centerline bus path into per-trace p
   expect(solver.solved).toBe(true)
   expect(solver.failed).toBe(false)
   expect(output).not.toBeNull()
-  expect(output?.tracePaths).toHaveLength(gridBuilderSolver.getOutput()?.traceCount ?? 0)
+  expect(output?.tracePaths).toHaveLength(
+    gridBuilderSolver.getOutput()?.traceCount ?? 0,
+  )
   expect(output?.tracePitch).toBeCloseTo(0.6)
   expect(output?.centerlineRunCount).toBeGreaterThan(1)
   expect(output?.turnCount).toBe(output ? output.centerlineRunCount - 1 : 0)
@@ -650,10 +656,7 @@ test("SplitIntoTracePathsSolver expands the centerline bus path into per-trace p
       (tracePath) => tracePath.points.length > centerlineRunCount + 1,
     ),
   ).toBe(true)
-  expect(outerTraceStartDistance).toBeCloseTo(
-    (traceCount - 1) * tracePitch,
-    5,
-  )
+  expect(outerTraceStartDistance).toBeCloseTo((traceCount - 1) * tracePitch, 5)
   expect(minimumTracePathDistance).toBeGreaterThanOrEqual(
     (output?.tracePitch ?? 0) - 0.01,
   )
@@ -689,9 +692,9 @@ test("BusRoutePipeline runs through bus path finding and visualizes the current/
       (line) => line.label === "selected-fanout-fanin-pair",
     ),
   ).toBe(true)
-  expect(
-    visualization.lines?.some((line) => line.label === "trace-path"),
-  ).toBe(true)
+  expect(visualization.lines?.some((line) => line.label === "trace-path")).toBe(
+    true,
+  )
   expect(
     visualization.lines?.some((line) => line.label === "bus-centerline-path"),
   ).toBe(true)

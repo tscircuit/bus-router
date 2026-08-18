@@ -86,9 +86,8 @@ export class BusRoutePipeline extends BasePipelineSolver<BusRouterInput> {
           fanoutStartEnd: instance.getStageOutput<FindFanoutStartEndOutput>(
             "findFanoutStartEndSolver",
           )!,
-          busPath: instance.getStageOutput<FindBusPathOutput>(
-            "findBusPathSolver",
-          )!,
+          busPath:
+            instance.getStageOutput<FindBusPathOutput>("findBusPathSolver")!,
         },
       ],
     ),
