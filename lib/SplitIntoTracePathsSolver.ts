@@ -83,7 +83,10 @@ const getTraceColor = (traceIndex: number, traceCount: number): string => {
   return `hsl(${hue.toFixed(1)} 72% 44%)`
 }
 
-const getStepVector = (fromCell: GridCellAddress, toCell: GridCellAddress): GridStep => ({
+const getStepVector = (
+  fromCell: GridCellAddress,
+  toCell: GridCellAddress,
+): GridStep => ({
   columnStep: toCell.column - fromCell.column,
   rowStep: toCell.row - fromCell.row,
 })
@@ -122,7 +125,10 @@ const arePointsNear = (pointA: XYPoint, pointB: XYPoint): boolean =>
   Math.abs(pointA.y - pointB.y) < EPSILON
 
 const pushPointIfDistinct = (points: XYPoint[], point: XYPoint) => {
-  if (points.length === 0 || !arePointsNear(points[points.length - 1]!, point)) {
+  if (
+    points.length === 0 ||
+    !arePointsNear(points[points.length - 1]!, point)
+  ) {
     points.push(point)
   }
 }
@@ -195,10 +201,7 @@ const intersectLines = (params: {
   lineBPoint: XYPoint
   lineBDirection: Vector2
 }): XYPoint | null => {
-  const denominator = crossProduct(
-    params.lineADirection,
-    params.lineBDirection,
-  )
+  const denominator = crossProduct(params.lineADirection, params.lineBDirection)
 
   if (Math.abs(denominator) < EPSILON) {
     return null
@@ -229,7 +232,11 @@ const createRoundJoinPoints = (params: {
     params.previousNormal,
     params.offset,
   )
-  const nextJoinPoint = offsetPoint(params.vertex, params.nextNormal, params.offset)
+  const nextJoinPoint = offsetPoint(
+    params.vertex,
+    params.nextNormal,
+    params.offset,
+  )
 
   if (Math.abs(params.offset) < EPSILON) {
     return [nextJoinPoint]
@@ -275,7 +282,10 @@ const buildOffsetJoin = (params: {
   )
   const turnAngle = Math.atan2(
     turnCross,
-    dotProduct(params.previousRun.directionVector, params.nextRun.directionVector),
+    dotProduct(
+      params.previousRun.directionVector,
+      params.nextRun.directionVector,
+    ),
   )
   const previousJoinPoint = offsetPoint(
     params.nextRun.start,
@@ -376,7 +386,10 @@ export const createSplitIntoTracePathsVisualization = (params: {
   const traceLines: NonNullable<GraphicsObject["lines"]> =
     params.output.tracePaths.map((tracePath) => ({
       points: tracePath.points,
-      strokeColor: getTraceColor(tracePath.traceIndex, params.output.traceCount),
+      strokeColor: getTraceColor(
+        tracePath.traceIndex,
+        params.output.traceCount,
+      ),
       strokeWidth: params.output.traceWidth,
       label: "trace-path",
     }))
@@ -433,7 +446,8 @@ export class SplitIntoTracePathsSolver extends BaseSolver {
       return
     }
 
-    const tracePitch = this.params.grid.traceWidth + this.params.grid.traceSpacing
+    const tracePitch =
+      this.params.grid.traceWidth + this.params.grid.traceSpacing
     const traceCenter = (this.params.grid.traceCount - 1) / 2
     const turnSegmentsPerQuarterTurn = Math.max(
       2,

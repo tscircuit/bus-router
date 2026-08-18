@@ -18,17 +18,17 @@
     "format:check": "biome format ."
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
+    "@biomejs/biome": "2.4.11",
     "@tscircuit/solver-utils": "^0.0.19",
     "@types/bun": "latest",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "cosmos": "^0.1.2",
     "graphics-debug": "^0.0.90",
-    "react": "^19.2.5",
-    "react-cosmos-plugin-vite": "^7.2.0",
-    "react-dom": "^19.2.5",
+    "react": "^19.2.8",
+    "react-cosmos": "^7.4.0",
+    "react-cosmos-plugin-vite": "^7.4.0",
+    "react-dom": "^19.2.8",
     "typescript": "^5.9.3",
-    "vite": "^8.0.8"
+    "vite": "^8.2.1"
   }
 }
